@@ -1,0 +1,13 @@
+__pycache__/
+.env
+venv/
+textEditor312/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+files/*
+!files/.gitkeep
