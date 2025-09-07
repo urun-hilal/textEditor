@@ -3,7 +3,8 @@ app.py
 
 FastAPI backend service for editing text, YAML, and JSON files.
 The service supports uploading files, fetching from Bitbucket, creating
-new files, and persisting edits to disk.
+new files, and persisting edits to disk. It also serves a minimal web
+interface for interacting with the API.
 """
 
 from __future__ import annotations
@@ -16,12 +17,14 @@ from typing import Dict
 import requests
 import yaml
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 ALLOWED_EXTENSIONS = {".txt", ".json", ".yaml", ".yml"}
 STORAGE_DIR = Path(__file__).parent / "storage"
 
 app = FastAPI()
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
 class FileContent(BaseModel):
