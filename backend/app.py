@@ -17,14 +17,27 @@ from typing import Dict
 import requests
 import yaml
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 ALLOWED_EXTENSIONS = {".txt", ".json", ".yaml", ".yml"}
 STORAGE_DIR = Path(__file__).parent / "storage"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 app = FastAPI()
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
+
+@app.get("/", response_class=HTMLResponse)
+def serve_index() -> HTMLResponse:
+    """Return the main interface HTML.
+
+    Returns:
+        HTMLResponse: rendered index page.
+    """
+
+    # Step 1: Read and return index file
+    index_path = FRONTEND_DIR / "index.html"
+    return HTMLResponse(index_path.read_text(encoding="utf-8"))
 
 
 class FileContent(BaseModel):
