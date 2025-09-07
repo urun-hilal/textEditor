@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Text Editor</title>
+</head>
+<body>
+  <h1>Text Editor</h1>
+
+  <section>
+    <h2>Upload File</h2>
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Upload</button>
+  </section>
+
+  <section>
+    <h2>Fetch from Bitbucket</h2>
+    <input type="text" id="urlInput" placeholder="Raw file URL" />
+    <button onclick="fetchFromBitbucket()">Fetch</button>
+  </section>
+
+  <section>
+    <h2>Create New File</h2>
+    <input type="text" id="newFilename" placeholder="filename.txt" />
+    <button onclick="createFile()">Create</button>
+  </section>
+
+  <section>
+    <h2>Editor</h2>
+    <div>Editing: <span id="currentFilename"></span></div>
+    <textarea id="editor" rows="20" cols="80"></textarea><br />
+    <button onclick="saveFile()">Save</button>
+  </section>
+
+  <script>
+    let currentFile = "";
+
+    async function uploadFile() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      const resp = await fetch('/files/upload', { method: 'POST', body: formData });
+      const data = await resp.json();
+      currentFile = data.filename;
+      document.getElementById('currentFilename').textContent = currentFile;
+      await loadContent();
+    }
+
+    async function fetchFromBitbucket() {
+      const url = document.getElementById('urlInput').value;
+      const resp = await fetch('/files/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await resp.json();
+      currentFile = data.filename;
+      document.getElementById('currentFilename').textContent = currentFile;
+      await loadContent();
+    }
+
+    async function createFile() {
+      const filename = document.getElementById('newFilename').value;
+      if (!filename) return;
+      await fetch('/files/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, content: '' })
+      });
+      currentFile = filename;
+      document.getElementById('currentFilename').textContent = currentFile;
+      document.getElementById('editor').value = '';
+    }
+
+    async function loadContent() {
+      if (!currentFile) return;
+      const resp = await fetch('/files/' + encodeURIComponent(currentFile));
+      const data = await resp.json();
+      document.getElementById('editor').value = data.content;
+    }
+
+    async function saveFile() {
+      if (!currentFile) return;
+      const content = document.getElementById('editor').value;
+      await fetch('/files/' + encodeURIComponent(currentFile), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      if (confirm('Persist changes to disk?')) {
+        await fetch('/files/' + encodeURIComponent(currentFile) + '/save', {
+          method: 'POST'
+        });
+      }
+    }
+  </script>
+</body>
+</html>
