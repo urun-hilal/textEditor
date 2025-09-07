@@ -1,7 +1,6 @@
 __pycache__/
 .env
 venv/
-textEditor312/
 *.pyc
 *.pyo
 *.pyd
