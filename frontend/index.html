@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>Text Editor</title>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/yaml/yaml.min.js"></script>
 </head>
 <body>
   <h1>Text Editor</h1>
@@ -28,12 +35,27 @@
   <section>
     <h2>Editor</h2>
     <div>Editing: <span id="currentFilename"></span></div>
-    <textarea id="editor" rows="20" cols="80"></textarea><br />
+    <textarea id="editor"></textarea><br />
     <button onclick="saveFile()">Save</button>
   </section>
 
   <script>
+    const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+      lineNumbers: true,
+      mode: 'text/plain'
+    });
+
     let currentFile = "";
+
+    function setMode(filename) {
+      if (filename.endsWith('.json')) {
+        editor.setOption('mode', 'application/json');
+      } else if (filename.endsWith('.yaml') || filename.endsWith('.yml')) {
+        editor.setOption('mode', 'yaml');
+      } else {
+        editor.setOption('mode', 'text/plain');
+      }
+    }
 
     async function uploadFile() {
       const input = document.getElementById('fileInput');
@@ -71,19 +93,21 @@
       });
       currentFile = filename;
       document.getElementById('currentFilename').textContent = currentFile;
-      document.getElementById('editor').value = '';
+      editor.setValue('');
+      setMode(filename);
     }
 
     async function loadContent() {
       if (!currentFile) return;
       const resp = await fetch('/files/' + encodeURIComponent(currentFile));
       const data = await resp.json();
-      document.getElementById('editor').value = data.content;
+      editor.setValue(data.content);
+      setMode(currentFile);
     }
 
     async function saveFile() {
       if (!currentFile) return;
-      const content = document.getElementById('editor').value;
+      const content = editor.getValue();
       await fetch('/files/' + encodeURIComponent(currentFile), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
