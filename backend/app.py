@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import requests
 import yaml
@@ -126,6 +126,12 @@ class CreateRequest(BaseModel):
     content: str = ""
 
 
+class RenameRequest(BaseModel):
+    """Request model for renaming an existing file."""
+
+    new_filename: str
+
+
 @app.post("/files/create")
 def create_file(payload: CreateRequest) -> Dict[str, str]:
     """Create a new file in memory."""
@@ -137,6 +143,54 @@ def create_file(payload: CreateRequest) -> Dict[str, str]:
     # Step 2: Store file
     files[payload.filename] = FileRecord(content=payload.content, dirty=True)
     return {"message": "File created. Call save endpoint to persist."}
+
+
+@app.get("/files")
+def list_files() -> Dict[str, List[str]]:
+    """Return a list of files currently in memory."""
+
+    # Step 1: Return sorted file names
+    return {"files": sorted(files.keys())}
+
+
+@app.delete("/files/{filename}")
+def delete_file(filename: str) -> Dict[str, str]:
+    """Delete a file from memory and disk if present."""
+
+    # Step 1: Remove from memory
+    record = files.pop(filename, None)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Step 2: Remove from storage directory
+    path = STORAGE_DIR / filename
+    if path.exists():
+        path.unlink()
+
+    return {"message": "File deleted"}
+
+
+@app.post("/files/{filename}/rename")
+def rename_file(filename: str, payload: RenameRequest) -> Dict[str, str]:
+    """Rename a file while preserving its content."""
+
+    # Step 1: Ensure original file exists
+    record = files.get(filename)
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Step 2: Validate new filename and content
+    _validate_extension(payload.new_filename)
+    _validate_content(payload.new_filename, record.content)
+
+    # Step 3: Move record and rename on disk if needed
+    files[payload.new_filename] = files.pop(filename)
+    old_path = STORAGE_DIR / filename
+    new_path = STORAGE_DIR / payload.new_filename
+    if old_path.exists():
+        old_path.rename(new_path)
+
+    return {"message": "File renamed"}
 
 
 @app.get("/files/{filename}")

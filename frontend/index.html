@@ -3,49 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <title>Text Editor</title>
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css"
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/yaml/yaml.min.js"></script>
+  <style>
+    body { display: flex; margin: 0; height: 100vh; font-family: sans-serif; }
+    #sidebar { width: 250px; border-right: 1px solid #ccc; padding: 10px; box-sizing: border-box; }
+    #editorContainer { flex: 1; display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; }
+    #fileList { list-style: none; padding: 0; margin-top: 10px; }
+    #fileList li { padding: 4px; cursor: pointer; }
+    #fileList li:hover { background: #f0f0f0; }
+    #contextMenu { position: absolute; display: none; background: #fff; border: 1px solid #ccc; z-index: 1000; }
+    #contextMenu ul { list-style: none; margin: 0; padding: 4px 0; }
+    #contextMenu li { padding: 4px 12px; cursor: pointer; }
+    #contextMenu li:hover { background: #f0f0f0; }
+  </style>
 </head>
 <body>
-  <h1>Text Editor</h1>
-
-  <section>
-    <h2>Upload File</h2>
-    <input type="file" id="fileInput" />
-    <button onclick="uploadFile()">Upload</button>
-  </section>
-
-  <section>
-    <h2>Fetch from Bitbucket</h2>
-    <input type="text" id="urlInput" placeholder="Raw file URL" />
-    <button onclick="fetchFromBitbucket()">Fetch</button>
-  </section>
-
-  <section>
-    <h2>Create New File</h2>
-    <input type="text" id="newFilename" placeholder="filename.txt" />
-    <button onclick="createFile()">Create</button>
-  </section>
-
-  <section>
-    <h2>Editor</h2>
+  <div id="sidebar">
+    <h2>Files</h2>
+    <div>
+      <input type="file" id="fileInput" />
+      <button onclick="uploadFile()">Upload</button>
+    </div>
+    <div style="margin-top: 8px;">
+      <input type="text" id="newFilename" placeholder="filename.txt" />
+      <button onclick="createFile()">Create</button>
+    </div>
+    <ul id="fileList"></ul>
+  </div>
+  <div id="editorContainer">
     <div>Editing: <span id="currentFilename"></span></div>
-    <textarea id="editor"></textarea><br />
-    <button onclick="saveFile()">Save</button>
-  </section>
-
+    <textarea id="editor"></textarea>
+    <button style="margin-top: 8px;" onclick="saveFile()">Save</button>
+  </div>
+  <div id="contextMenu">
+    <ul>
+      <li onclick="openFromMenu()">Open</li>
+      <li onclick="renameFromMenu()">Edit</li>
+      <li onclick="deleteFromMenu()">Delete</li>
+    </ul>
+  </div>
   <script>
     const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
       lineNumbers: true,
       mode: 'text/plain'
     });
 
-    let currentFile = "";
+    let currentFile = '';
+    let menuFile = '';
 
     function setMode(filename) {
       if (filename.endsWith('.json')) {
@@ -55,6 +62,75 @@
       } else {
         editor.setOption('mode', 'text/plain');
       }
+    }
+
+    async function refreshFileList() {
+      const resp = await fetch('/files');
+      const data = await resp.json();
+      const list = document.getElementById('fileList');
+      list.innerHTML = '';
+      data.files.forEach(fn => {
+        const li = document.createElement('li');
+        li.textContent = fn;
+        li.onclick = () => openFile(fn);
+        li.oncontextmenu = e => {
+          e.preventDefault();
+          menuFile = fn;
+          showContextMenu(e.pageX, e.pageY);
+        };
+        list.appendChild(li);
+      });
+    }
+
+    function showContextMenu(x, y) {
+      const menu = document.getElementById('contextMenu');
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      menu.style.display = 'block';
+    }
+
+    function hideContextMenu() {
+      document.getElementById('contextMenu').style.display = 'none';
+    }
+
+    document.addEventListener('click', hideContextMenu);
+
+    function openFromMenu() {
+      openFile(menuFile);
+      hideContextMenu();
+    }
+
+    async function deleteFromMenu() {
+      await fetch('/files/' + encodeURIComponent(menuFile), { method: 'DELETE' });
+      if (currentFile === menuFile) {
+        currentFile = '';
+        document.getElementById('currentFilename').textContent = '';
+        editor.setValue('');
+      }
+      hideContextMenu();
+      refreshFileList();
+    }
+
+    async function renameFromMenu() {
+      const newName = prompt('New filename', menuFile);
+      if (!newName) { hideContextMenu(); return; }
+      await fetch('/files/' + encodeURIComponent(menuFile) + '/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_filename: newName })
+      });
+      if (currentFile === menuFile) {
+        currentFile = newName;
+        document.getElementById('currentFilename').textContent = currentFile;
+      }
+      hideContextMenu();
+      refreshFileList();
+    }
+
+    function openFile(filename) {
+      currentFile = filename;
+      document.getElementById('currentFilename').textContent = currentFile;
+      loadContent();
     }
 
     async function uploadFile() {
@@ -68,19 +144,7 @@
       currentFile = data.filename;
       document.getElementById('currentFilename').textContent = currentFile;
       await loadContent();
-    }
-
-    async function fetchFromBitbucket() {
-      const url = document.getElementById('urlInput').value;
-      const resp = await fetch('/files/fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-      const data = await resp.json();
-      currentFile = data.filename;
-      document.getElementById('currentFilename').textContent = currentFile;
-      await loadContent();
+      refreshFileList();
     }
 
     async function createFile() {
@@ -95,6 +159,7 @@
       document.getElementById('currentFilename').textContent = currentFile;
       editor.setValue('');
       setMode(filename);
+      refreshFileList();
     }
 
     async function loadContent() {
@@ -119,6 +184,8 @@
         });
       }
     }
+
+    refreshFileList();
   </script>
 </body>
 </html>
