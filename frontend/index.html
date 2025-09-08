@@ -8,7 +8,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/yaml/yaml.min.js"></script>
   <style>
-    body { display: flex; margin: 0; height: 100vh; font-family: sans-serif; }
+    body { display: flex; flex-direction: column; margin: 0; height: 100vh; font-family: sans-serif; }
+    #toolbar { background: #333; color: #fff; display: flex; align-items: center; padding: 0 10px; height: 40px; }
+    .menu { position: relative; margin-right: 20px; cursor: pointer; }
+    .menu .dropdown { display: none; position: absolute; top: 100%; left: 0; background: #fff; color: #000; min-width: 150px; border: 1px solid #ccc; z-index: 1000; }
+    .menu:hover .dropdown { display: block; }
+    .dropdown div { padding: 8px 12px; }
+    .dropdown div:hover { background: #f0f0f0; }
+    #main { flex: 1; display: flex; }
     #sidebar { width: 250px; border-right: 1px solid #ccc; padding: 10px; box-sizing: border-box; }
     #editorContainer { flex: 1; display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; }
     #fileList { list-style: none; padding: 0; margin-top: 10px; }
@@ -21,27 +28,32 @@
   </style>
 </head>
 <body>
-  <div id="sidebar">
-    <h2>Files</h2>
-    <div>
-      <input type="file" id="fileInput" />
-      <button onclick="uploadFile()">Upload</button>
+  <input type="file" id="fileInput" style="display: none;" />
+  <div id="toolbar">
+    <div class="menu"><span>Home</span></div>
+    <div class="menu">
+      <span>File</span>
+      <div class="dropdown">
+        <div onclick="triggerUpload()">Upload from local</div>
+        <div onclick="createFile()">Create a file</div>
+      </div>
     </div>
-    <div style="margin-top: 8px;">
-      <input type="text" id="newFilename" placeholder="filename.txt" />
-      <button onclick="createFile()">Create</button>
-    </div>
-    <ul id="fileList"></ul>
   </div>
-  <div id="editorContainer">
-    <div>Editing: <span id="currentFilename"></span></div>
-    <textarea id="editor"></textarea>
-    <button style="margin-top: 8px;" onclick="saveFile()">Save</button>
+  <div id="main">
+    <div id="sidebar">
+      <h2>Files</h2>
+      <ul id="fileList"></ul>
+    </div>
+    <div id="editorContainer">
+      <div>Editing: <span id="currentFilename"></span></div>
+      <textarea id="editor"></textarea>
+      <button style="margin-top: 8px; align-self: flex-start;" onclick="saveFile()">Save</button>
+    </div>
   </div>
   <div id="contextMenu">
     <ul>
-      <li onclick="openFromMenu()">Open</li>
-      <li onclick="renameFromMenu()">Edit</li>
+      <li onclick="openFromMenu()">Open with editor</li>
+      <li onclick="renameFromMenu()">Rename</li>
       <li onclick="deleteFromMenu()">Delete</li>
     </ul>
   </div>
@@ -133,6 +145,12 @@
       loadContent();
     }
 
+    function triggerUpload() {
+      document.getElementById('fileInput').click();
+    }
+
+    document.getElementById('fileInput').addEventListener('change', uploadFile);
+
     async function uploadFile() {
       const input = document.getElementById('fileInput');
       const file = input.files[0];
@@ -145,10 +163,11 @@
       document.getElementById('currentFilename').textContent = currentFile;
       await loadContent();
       refreshFileList();
+      input.value = '';
     }
 
     async function createFile() {
-      const filename = document.getElementById('newFilename').value;
+      const filename = prompt('Enter new filename');
       if (!filename) return;
       await fetch('/files/create', {
         method: 'POST',
